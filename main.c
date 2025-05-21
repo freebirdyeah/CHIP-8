@@ -225,7 +225,15 @@ int main() {
         // — draw to screen —
         BeginDrawing();
         ClearBackground(BLACK);
-        DrawTexture(texture, 800/2, 450/2, WHITE);
+        Rectangle src = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+        Rectangle dest = {
+            0,
+            0,
+            GetScreenWidth(),   // or 800
+            GetScreenHeight()    // or 450
+        };
+        Vector2 origin = { 0, 0 };
+        DrawTexturePro(texture, src, dest, origin, 0.0f, WHITE);
         EndDrawing();
     }
 }
