@@ -122,8 +122,8 @@ int main() {
     InitWindow(scW, scH, "CHIP-8");
 
     // thank you stack overflow: `https://stackoverflow.com/questions/76897194/how-to-display-an-image-from-an-array-using-raylib`
-    unsigned char display_gfx[64 * 32];
-    for (int i = 0; i < 64 * 32; i++) display_gfx[i] = (gfx[i] % 2 == 0 ? 0 : 255);
+    unsigned char display_gfx[SCREEN_WIDTH * SCREEN_HEIGHT];
+    for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) display_gfx[i] = (gfx[i] % 2 == 0 ? 0 : 255);
 
     Image img = {
         .data = display_gfx,
@@ -217,7 +217,7 @@ int main() {
         }
 
         if (draw_flag) {
-            for (int i = 0; i < 64 * 32; i++) display_gfx[i] = (gfx[i] % 2 == 0 ? 0 : 255);
+            for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) display_gfx[i] = (gfx[i] % 2 == 0 ? 0 : 255);
             UpdateTexture(texture, display_gfx);
             draw_flag = 0;
         }
