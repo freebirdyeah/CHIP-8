@@ -222,15 +222,15 @@ int main() {
             draw_flag = 0;
         }
     
-        // — draw to screen —
+        // Draw, rectangles and drawtexturepro can be used to scale up the previous texture
         BeginDrawing();
         ClearBackground(BLACK);
         Rectangle src = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
         Rectangle dest = {
             0,
             0,
-            GetScreenWidth(),   // or 800
-            GetScreenHeight()    // or 450
+            scW,
+            scH,
         };
         Vector2 origin = { 0, 0 };
         DrawTexturePro(texture, src, dest, origin, 0.0f, WHITE);
