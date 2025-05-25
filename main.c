@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "raylib.h"
-#include <string.h>
 
 
 #define SCREEN_WIDTH 64
