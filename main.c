@@ -215,6 +215,87 @@ int main() {
             draw_flag = 1;
         }
 
+        // 2NNN (subroutine) PUSH TO STACK
+        else if ((opcode & 0b1111000000000000) == 0x2000) {
+            stack[SP] = PC;
+            SP++;
+            PC = NNN;
+        }
+
+        // 00EE (subroutine) POP FROM STACK
+        else if (opcode == 0x00EE) {
+            PC = stack[SP];
+            stack[SP] = 0;
+            SP--;
+        }
+
+        // 3XNN: skip conditionally
+        else if ((opcode & 0b1111000000000000) == 0x3000) {
+            if (V[X] == NN) {
+                PC += 2;
+            }
+        }
+
+        // 4XNN: skip conditionally
+        else if ((opcode & 0b1111000000000000) == 0x4000) {
+            if (V[X] != NN) {
+                PC += 2;
+            }
+        }
+
+        // 5XY0: skip conditionally
+        else if ((opcode & 0b1111000000001111) == 0x5000) {
+            if (V[X] == V[Y]) {
+                PC += 2;
+            }
+        }
+
+        // 9XY0: skip conditionally
+        else if ((opcode & 0b1111000000001111) == 0x9000) {
+            if (V[X] != V[Y]) {
+                PC += 2;
+            }
+        }
+
+        // 8XY0: set
+        else if ((opcode & 0b1111000000001111) == 0x8000) {
+            V[X] = V[Y];
+        }
+
+        // 8XY1: OR
+        else if ((opcode & 0b1111000000001111) == 0x8001) {
+            V[X] = V[X] | V[Y];
+        }
+
+        // 8XY2: AND
+        else if ((opcode & 0b1111000000001111) == 0x8002) {
+            V[X] = V[X] & V[Y];
+        }
+
+        // 8XY3: XOR
+        else if ((opcode & 0b1111000000001111) == 0x8003) {
+            V[X] = V[X] ^ V[Y];
+        }
+
+        // 8XY4: ADD
+        else if ((opcode & 0b1111000000001111) == 0x8004) {
+            uint16_t sum = V[X] + V[Y];
+            V[0xF] = (sum > 0xFF) ? 1 : 0;
+            V[X] = sum & 0xFF;
+        }
+
+        // 8XY5: Subtract
+        else if ((opcode & 0b1111000000001111) == 0x8005) {
+            V[0xF] = (V[X] >= V[Y]) ? 1 : 0;
+            V[X] = (V[X] - V[Y]) & 0xFF;
+        }
+
+        // 8XY7: Subtract
+        else if ((opcode & 0b1111000000001111) == 0x8007) {
+            V[0xF] = (V[Y] >= V[X]) ? 1 : 0;
+            V[X] = (V[Y] - V[X]) & 0xFF;
+        }
+
         if (draw_flag) {
             for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) display_gfx[i] = (gfx[i] % 2 == 0 ? 0 : 255);
             UpdateTexture(texture, display_gfx);
