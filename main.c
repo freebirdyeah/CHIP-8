@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <time.h>
+
 #include "raylib.h"
 
 
@@ -143,7 +146,7 @@ int main() {
         // fetch 
         uint16_t opcode = (memory[PC] << 8) | memory[PC+1];
         // debugging
-	// printf("0x%04X\n", opcode);
+	    // printf("0x%04X\n", opcode);
 
         PC += 2;
 
@@ -295,6 +298,33 @@ int main() {
             V[0xF] = (V[Y] >= V[X]) ? 1 : 0;
             V[X] = (V[Y] - V[X]) & 0xFF;
         }
+
+        // 8XY6: shift right
+        else if ((opcode & 0b1111000000001111) == 0x8006) {
+            V[X] = V[Y];
+            V[0xF] = V[X] & 1;
+            V[X] = V[X] >> 1;
+        }
+
+        // 8XYE: shift left
+        else if ((opcode & 0b1111000000001111) == 0x800E) {
+            V[X] = V[Y];
+            V[0xF] = V[X] & 1;
+            V[X] = V[X] << 1;
+        }
+
+        // BNNN: jump with offset
+        else if ((opcode & 0b1111000000000000) == 0xB000) {
+            PC = NNN + V[0];
+        }
+
+        // CXNN: Random
+        else if ((opcode & 0b1111000000000000) == 0xC000) {
+            srand(time(NULL));
+            V[X] = (rand() % 256) & NN;
+        }
+
+        //
 
         if (draw_flag) {
             for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) display_gfx[i] = (gfx[i] % 2 == 0 ? 0 : 255);
