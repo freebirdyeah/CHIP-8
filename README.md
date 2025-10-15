@@ -1,9 +1,23 @@
-# CHIP-8
-CHIP-8 emulator made in C
+# CHIP-8 Emulator
 
-WIP! Still have to add timing, keyboard input, sound and other instructions stuff
+Finally done... my CHIP-8 emulator written in C with [raylib](https://www.raylib.com/)
 
-## Pics:-
-<h3>Just loading logos for now </h3>
+## Features
+- 64×32 monochrome display rendered via raylib, scaled cleanly to a desktop window.
+- Hex keypad mapping to the keyboard: `1 2 3 4`, `Q W E R`, `A S D F`, `Z X C V`.
+- Configurable ROM loading from the command line and a helper script to generate the default beep sample.
 
-![Pic 1](images/pic1.png)
+## Getting Started
+Prerequisites on Ubuntu/WSL:
+- `raylib` development libraries
+- `gcc`
+
+## Run
+```bash
+make run ROM=assets/[ch8-filename]
+```
+
+## Screenshots
+![IBM Logo](images/ibm.png)
+![Pong](images/pong.png)
+

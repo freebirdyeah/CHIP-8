@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stdbool.h>
 
 #include "raylib.h"
 
@@ -13,7 +14,7 @@
 #define PROGRAM_START 0x200
 
 
-void init(unsigned char *memory, unsigned char *V, uint16_t *PC, uint16_t *I, uint16_t *SP, uint16_t *stack, int *flag, unsigned char *gfx) {
+void init(unsigned char *memory, unsigned char *V, uint16_t *PC, uint16_t *I, uint16_t *SP, uint16_t *stack, int *flag, unsigned char *gfx, uint8_t *delay_timer, uint8_t *sound_timer) {
       
     for (int i = 0; i < MEMORY_SIZE; i++) {
         memory[i] = 0;        
@@ -63,15 +64,19 @@ void init(unsigned char *memory, unsigned char *V, uint16_t *PC, uint16_t *I, ui
 
     for (int i = 0; i < 80; i++) {
         memory[FONT_START_ADDRESS+ i] = font_data[i];
-    }    
+    }
+
+    *delay_timer = 0;
+    *sound_timer = 0;
 }
 
 
-void load_ch8(char filepath[], unsigned char *memory) {
+void load_ch8(const char *filepath, unsigned char *memory) {
     
     FILE *f = fopen(filepath, "rb");
     if (!f) {
         perror("Failed to open ROM");
+        exit(EXIT_FAILURE);
     }
 
     unsigned char byte;
@@ -89,7 +94,7 @@ void load_ch8(char filepath[], unsigned char *memory) {
 }
 
 
-int main() {
+int main(int argc, char *argv[]) {
     
     // 4096 bytes of RAM, 0x000 - 0x1FF is empty, ROM is loaded at 0x200
     unsigned char memory[MEMORY_SIZE];
@@ -109,13 +114,19 @@ int main() {
     // Stack is small, 16 two-byte entries
     uint16_t stack[16];
 
+    // timers
+    uint8_t delay_timer = 0;
+    uint8_t sound_timer = 0;
+
+    const char *rom_path = (argc > 1) ? argv[1] : "bin/2-ibm-logo.ch8";
+
     // Display
     unsigned char gfx[SCREEN_WIDTH * SCREEN_HEIGHT];
 
     int draw_flag = 0;
 
-    init(memory, V, &PC, &I, &SP, stack, &draw_flag, gfx);
-    load_ch8("bin/2-ibm-logo.ch8", memory);
+    init(memory, V, &PC, &I, &SP, stack, &draw_flag, gfx, &delay_timer, &sound_timer);
+    load_ch8(rom_path, memory);
 
     ////////////////////////////////////////////////////////////////
     int scW = 800;
@@ -136,12 +147,45 @@ int main() {
     };
 
     Texture2D texture = LoadTextureFromImage(img);
+
+    InitAudioDevice();
+    Sound beep_sound = LoadSound("assets/beep.wav");
+
+    srand((unsigned) time(NULL));
+
+    const int key_map[16] = {
+        KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR,
+        KEY_Q, KEY_W, KEY_E, KEY_R,
+        KEY_A, KEY_S, KEY_D, KEY_F,
+        KEY_Z, KEY_X, KEY_C, KEY_V
+    };
+
+    bool chip_keys[16] = { false };
     ///////////////////////////////////////////////////////////////////
 
     SetTargetFPS(60);
-    
+    double timer_accumulator = 0.0;
+    const double timer_interval = 1.0 / 60.0;
+
     while (!WindowShouldClose())
     {
+        double frame_time = GetFrameTime();
+        timer_accumulator += frame_time;
+        while (timer_accumulator >= timer_interval) {
+            if (delay_timer > 0) delay_timer--;
+            if (sound_timer > 0) sound_timer--;
+            timer_accumulator -= timer_interval;
+        }
+
+        if (sound_timer > 0) {
+            if (!IsSoundPlaying(beep_sound)) PlaySound(beep_sound);
+        } else if (IsSoundPlaying(beep_sound)) {
+            StopSound(beep_sound);
+        }
+
+        for (int i = 0; i < 16; i++) {
+            chip_keys[i] = IsKeyDown(key_map[i]);
+        }
 
         // fetch 
         uint16_t opcode = (memory[PC] << 8) | memory[PC+1];
@@ -220,6 +264,14 @@ int main() {
 
         // 2NNN (subroutine) PUSH TO STACK
         else if ((opcode & 0b1111000000000000) == 0x2000) {
+            if (SP >= 16) {
+                fprintf(stderr, "Stack overflow when calling subroutine\n");
+                UnloadSound(beep_sound);
+                CloseAudioDevice();
+                UnloadTexture(texture);
+                CloseWindow();
+                return EXIT_FAILURE;
+            }
             stack[SP] = PC;
             SP++;
             PC = NNN;
@@ -227,9 +279,17 @@ int main() {
 
         // 00EE (subroutine) POP FROM STACK
         else if (opcode == 0x00EE) {
+            if (SP == 0) {
+                fprintf(stderr, "Stack underflow when returning from subroutine\n");
+                UnloadSound(beep_sound);
+                CloseAudioDevice();
+                UnloadTexture(texture);
+                CloseWindow();
+                return EXIT_FAILURE;
+            }
+            SP--;
             PC = stack[SP];
             stack[SP] = 0;
-            SP--;
         }
 
         // 3XNN: skip conditionally
@@ -320,11 +380,97 @@ int main() {
 
         // CXNN: Random
         else if ((opcode & 0b1111000000000000) == 0xC000) {
-            srand(time(NULL));
             V[X] = (rand() % 256) & NN;
         }
 
-        //
+        // EX9E: skip if key stored in VX is pressed
+        else if ((opcode & 0b1111000011111111) == 0xE09E) {
+            uint8_t key = V[X] & 0x0F;
+            if (chip_keys[key]) {
+                PC += 2;
+            }
+        }
+
+        // EXA1: skip if key stored in VX is not pressed
+        else if ((opcode & 0b1111000011111111) == 0xE0A1) {
+            uint8_t key = V[X] & 0x0F;
+            if (!chip_keys[key]) {
+                PC += 2;
+            }
+        }
+
+        // FX07: load delay timer into VX
+        else if ((opcode & 0b1111000011111111) == 0xF007) {
+            V[X] = delay_timer;
+        }
+
+        // FX15: set delay timer from VX
+        else if ((opcode & 0b1111000011111111) == 0xF015) {
+            delay_timer = V[X];
+        }
+
+        // FX18: set sound timer from VX
+        else if ((opcode & 0b1111000011111111) == 0xF018) {
+            sound_timer = V[X];
+        }
+
+        // FX1E: add VX to I with carry flag
+        else if ((opcode & 0b1111000011111111) == 0xF01E) {
+            uint16_t result = I + V[X];
+            V[0xF] = (result > 0x0FFF) ? 1 : 0;
+            I = result & 0x0FFF;
+        }
+
+        // FX0A: wait for key press and store
+        else if ((opcode & 0b1111000011111111) == 0xF00A) {
+            bool key_pressed = false;
+            for (int i = 0; i < 16; i++) {
+                if (IsKeyPressed(key_map[i])) {
+                    V[X] = (unsigned char)i;
+                    key_pressed = true;
+                    break;
+                }
+            }
+            if (!key_pressed) {
+                PC -= 2;
+            }
+        }
+
+        // FX29: set I to sprite location for digit in VX
+        else if ((opcode & 0b1111000011111111) == 0xF029) {
+            unsigned char digit = V[X] & 0x0F;
+            I = FONT_START_ADDRESS + (digit * 5);
+        }
+
+        // FX33: store BCD of VX in memory
+        else if ((opcode & 0b1111000011111111) == 0xF033) {
+            unsigned char value = V[X];
+            if (I + 2 < MEMORY_SIZE) {
+                memory[I] = value / 100;
+                memory[I + 1] = (value / 10) % 10;
+                memory[I + 2] = value % 10;
+            }
+        }
+
+        // FX55: store registers V0 through VX in memory starting at I
+        else if ((opcode & 0b1111000011111111) == 0xF055) {
+            if (I + X < MEMORY_SIZE) {
+                for (int i = 0; i <= X; i++) {
+                    memory[I + i] = V[i];
+                }
+                I += (uint16_t)(X + 1);
+            }
+        }
+
+        // FX65: read registers V0 through VX from memory starting at I
+        else if ((opcode & 0b1111000011111111) == 0xF065) {
+            if (I + X < MEMORY_SIZE) {
+                for (int i = 0; i <= X; i++) {
+                    V[i] = memory[I + i];
+                }
+                I += (uint16_t)(X + 1);
+            }
+        }
 
         if (draw_flag) {
             for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) display_gfx[i] = (gfx[i] % 2 == 0 ? 0 : 255);
@@ -346,4 +492,11 @@ int main() {
         DrawTexturePro(texture, src, dest, origin, 0.0f, WHITE);
         EndDrawing();
     }
+
+    UnloadSound(beep_sound);
+    CloseAudioDevice();
+    UnloadTexture(texture);
+    CloseWindow();
+
+    return 0;
 }
